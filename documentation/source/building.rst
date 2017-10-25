@@ -81,6 +81,11 @@ COCOTB_NVC_TRACE
 
 Set this to 1 to enable display VHPI trace when using nvc VHDL simulator.
 
+NO_FLI
+~~~~~~
+
+Set this to 1 to not load ModelSim Foreign Language Interface (FLI) despite having Verilog and VHDL sources. This allows simulation in ModelSim without an FLI license if your VHDL is wrapped in Verilog at top the level.
+
 Environment Variables
 =====================
 

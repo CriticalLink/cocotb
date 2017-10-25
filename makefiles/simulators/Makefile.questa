@@ -71,7 +71,9 @@ endif
 else ifeq ($(TOPLEVEL_LANG),verilog)
     VSIM_ARGS += -pli libvpi.$(LIB_EXT)
 ifneq ($(VHDL_SOURCES),)
+ifneq ($(NO_FLI),1)
     GPI_EXTRA = fli 
+endif
 endif
 
 else
