@@ -35,7 +35,7 @@ import random
 
 import cocotb
 from cocotb.decorators import coroutine
-from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep, Event
+from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep, Event, FallingEdge
 from cocotb.drivers import BusDriver, ValidatedBusDriver
 from cocotb.utils import hexdump
 from cocotb.binary import BinaryValue
@@ -228,7 +228,8 @@ class AvalonMemory(BusDriver):
             "addressUnits": "symbols",    # symbols or words
             "readLatency": 1,    # number of cycles
             "WriteBurstWaitReq": True,  # generate random waitrequest
-            "MaxWaitReqLen": 4,  # maximum value of waitrequest
+            "MaxWaitReqLen": 4,  # maximum length of waitrequest
+            "WaitReqProb": 0.25,  # probability of a wait request occurance
             }
 
     def __init__(self, entity, name, clock, readlatency_min=1,
@@ -238,9 +239,6 @@ class AvalonMemory(BusDriver):
         if avl_properties != {}:
             for key, value in self._avalon_properties.items():
                 self._avalon_properties[key] = avl_properties.get(key, value)
-
-        if self._avalon_properties["burstCountUnits"] != "symbols":
-            self.log.error("Only symbols burstCountUnits is supported")
 
         if self._avalon_properties["addressUnits"] != "symbols":
             self.log.error("Only symbols addressUnits is supported")
@@ -340,6 +338,9 @@ class AvalonMemory(BusDriver):
                            ")")
 
         burstcount = self.bus.burstcount.value.integer
+        if self._avalon_properties["burstCountUnits"] == "symbols":
+            burstcount /= self.dataByteSize
+
         if burstcount == 0:
             self.log.error("Write burstcount must be 1 at least")
 
@@ -359,15 +360,15 @@ class AvalonMemory(BusDriver):
     def _waitrequest(self):
         """ generate waitrequest randomly """
         if self._avalon_properties.get("WriteBurstWaitReq", True):
-            if random.choice([True, False, False, False]):
+            if random.random() < self._avalon_properties.get("WaitReqProb",0.25):
                 randmax = self._avalon_properties.get("MaxWaitReqLen", 0)
                 waitingtime = range(random.randint(0, randmax))
                 for waitreq in waitingtime:
+                    yield NextTimeStep()
                     self.bus.waitrequest <= 1
                     yield RisingEdge(self.clock)
-            else:
-                yield NextTimeStep()
 
+            yield NextTimeStep()
             self.bus.waitrequest <= 0
 
 
@@ -404,6 +405,8 @@ class AvalonMemory(BusDriver):
                     addr = addr / self.dataByteSize
                     burstcount = self.bus.burstcount.value.integer
                     byteenable = self.bus.byteenable.value
+                    if self._avalon_properties["burstCountUnits"] == "words":
+                        burstcount *= self.dataByteSize
                     if byteenable != int("1"*len(self.bus.byteenable), 2):
                         self.log.error("Only full word access is supported " +
                                        "for burst read (byteenable must be " +
